@@ -3,6 +3,7 @@ package peer
 import (
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,40 +29,59 @@ func (s byTTL) Less(i, j int) bool {
 
 type List interface {
 	Upsert(lager.Logger, string)
+	UpsertUntrusted(logger lager.Logger, candidates []Glimpse)
 	Snapshot(lager.Logger) []Glimpse
 	RunCullerLoop(signals <-chan os.Signal, ready chan<- struct{}) error
 }
 
 func NewList(defaultTTL time.Duration, thisHost string) List {
 	return &peerList{
-		Lock:       &sync.Mutex{},
-		Peers:      make(map[string]time.Time),
-		DefaultTTL: defaultTTL,
-		ThisHost:   thisHost,
+		Lock:         &sync.Mutex{},
+		Peers:        make(map[string]time.Time),
+		DefaultTTL:   defaultTTL,
+		ThisHost:     thisHost,
+		CullInterval: defaultTTL / 2,
 	}
 }
 
 type peerList struct {
-	Lock       *sync.Mutex
-	Peers      map[string]time.Time
-	DefaultTTL time.Duration
-	ThisHost   string
-}
-
-func (p *peerList) self() Glimpse {
-	return Glimpse{
-		Host: p.ThisHost,
-		TTL:  int(p.DefaultTTL.Seconds()),
-	}
+	Lock         *sync.Mutex
+	Peers        map[string]time.Time
+	DefaultTTL   time.Duration
+	ThisHost     string
+	CullInterval time.Duration
 }
 
 func (p *peerList) Upsert(logger lager.Logger, host string) {
-	expireTime := time.Now().Add(p.DefaultTTL)
+	p.upsertWithTTL(logger, host, p.DefaultTTL)
+}
+
+func (p *peerList) upsertWithTTL(logger lager.Logger, host string, ttl time.Duration) {
+	expireTime := time.Now().Add(ttl)
 	p.Lock.Lock()
 	defer p.Lock.Unlock()
 
-	p.Peers[host] = expireTime
-	logger.Info("upserted", lager.Data{"host": host, "expires": expireTime})
+	host = strings.TrimSpace(host)
+	ttlSec := int(ttl.Seconds())
+	if p.Peers[host].Before(expireTime) {
+		p.Peers[host] = expireTime
+		logger.Info("upserted", lager.Data{"host": host, "ttl": ttlSec})
+	} else {
+		logger.Debug("no-op-upsert", lager.Data{"host": host, "ignored-ttl": ttlSec})
+	}
+}
+
+func (p *peerList) UpsertUntrusted(logger lager.Logger, candidates []Glimpse) {
+	const distrustFactor = 2
+
+	for _, candidate := range candidates {
+		newTTL := time.Duration(candidate.TTL) * time.Second
+		if newTTL > p.DefaultTTL {
+			newTTL = p.DefaultTTL
+		}
+		newTTL /= distrustFactor
+		p.upsertWithTTL(logger, candidate.Host, newTTL)
+	}
 }
 
 func (p *peerList) Snapshot(logger lager.Logger) []Glimpse {
@@ -72,12 +92,12 @@ func (p *peerList) Snapshot(logger lager.Logger) []Glimpse {
 
 	results := []Glimpse{}
 	for host, expiry := range p.Peers {
-		ttl := expiry.Sub(now)
-		results = append(results, Glimpse{Host: host, TTL: int(ttl.Seconds())})
+		if ttl := int(expiry.Sub(now).Seconds()); ttl > 0 {
+			results = append(results, Glimpse{Host: host, TTL: ttl})
+		}
 	}
 
 	sort.Sort(byTTL(results))
-	results = append(results, p.self())
 	logger.Debug("snapshot", lager.Data{"peers": results})
 	return results
 }
@@ -94,19 +114,19 @@ func (p *peerList) cull() {
 			culled[host] = expiry
 		}
 	}
+	culled[p.ThisHost] = time.Now().Add(p.DefaultTTL)
 
 	p.Peers = culled
 }
 
 func (p *peerList) RunCullerLoop(signals <-chan os.Signal, ready chan<- struct{}) error {
-	pollInterval := 5 * time.Second
 	close(ready)
 
 	for {
 		select {
 		case <-signals:
 			return nil
-		case <-time.After(pollInterval):
+		case <-time.After(p.CullInterval):
 			p.cull()
 		}
 	}

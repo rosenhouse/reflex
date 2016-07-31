@@ -18,13 +18,10 @@ type PeerList struct {
 	Peers  peer.List
 }
 
-type PeerEntry struct {
-	Host string
-	TTL  string
-}
-
 func (h *PeerList) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	logger := h.Logger.Session("list")
+	logger := h.Logger.Session("handle-list")
+	defer logger.Debug("done")
+
 	snapshot := h.Peers.Snapshot(logger)
 	json.NewEncoder(w).Encode(snapshot)
 }
@@ -42,7 +39,8 @@ func encodeError(stream io.Writer, msg string) {
 }
 
 func (h *PeerPost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	logger := h.Logger.Session("post")
+	logger := h.Logger.Session("handle-post")
+	defer logger.Debug("done")
 
 	clientIP, err := parseHostIP(r.RemoteAddr) // http server sets r.RemoteAddr to "IP:port"
 	if err != nil {

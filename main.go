@@ -2,8 +2,11 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
+	"strconv"
 
+	"github.com/rosenhouse/reflex/client"
 	"github.com/rosenhouse/reflex/handler"
 	"github.com/rosenhouse/reflex/peer"
 	"github.com/tedsuo/ifrit"
@@ -16,21 +19,51 @@ import (
 	"code.cloudfoundry.org/localip"
 )
 
+func parseLogLevel(level string) lager.LogLevel {
+	switch level {
+	case "debug", "DEBUG", "d", strconv.Itoa(int(lager.DEBUG)):
+		return lager.DEBUG
+	case "info", "INFO", "i", strconv.Itoa(int(lager.INFO)):
+		return lager.INFO
+	case "error", "ERROR", "e", strconv.Itoa(int(lager.ERROR)):
+		return lager.ERROR
+	case "fatal", "FATAL", "f", strconv.Itoa(int(lager.FATAL)):
+		return lager.FATAL
+	}
+	return lager.DEBUG
+}
+
 func main() {
 	logger := lager.NewLogger("reflex")
-	logger.RegisterSink(lager.NewWriterSink(os.Stdout, lager.DEBUG))
+	sink := lager.NewReconfigurableSink(lager.NewWriterSink(os.Stdout, lager.DEBUG), lager.DEBUG)
+	logger.RegisterSink(sink)
 
 	config, err := GetConfig(logger, os.Environ())
 	if err != nil {
 		logger.Fatal("parse-config", err)
 	}
+	sink.SetMinLevel(config.LogLevel)
 
 	myIP, err := localip.LocalIP()
 	if err != nil {
 		logger.Fatal("local-ip", err)
 	}
 	logger.Info("local-ip", lager.Data{"ip": myIP})
+
+	client := &client.Client{
+		HTTPClient: http.DefaultClient,
+		Port:       config.Port,
+	}
+
 	peers := peer.NewList(config.TTL, myIP)
+
+	heartbeat := Heartbeat{
+		Leader:        config.Leader,
+		CheckInterval: config.TTL,
+		Peers:         peers,
+		Logger:        logger,
+		Client:        client,
+	}
 
 	peerListHandler := &handler.PeerList{
 		Logger: logger,
@@ -62,6 +95,7 @@ func main() {
 	members := grouper.Members{
 		{"http_server", httpServer},
 		{"list_culler", ifrit.RunFunc(peers.RunCullerLoop)},
+		{"heart_beater", ifrit.RunFunc(heartbeat.RunHeartbeat)},
 	}
 
 	monitor := ifrit.Invoke(sigmon.New(grouper.NewOrdered(os.Interrupt, members)))

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -14,6 +15,11 @@ type Config struct {
 	Port         int
 	TTL          time.Duration
 	AllowedPeers *net.IPNet
+	CFInfo       struct {
+		URIs []string
+	}
+	Leader   string
+	LogLevel lager.LogLevel
 }
 
 type element struct {
@@ -39,6 +45,28 @@ var elements = []element{
 		"ALLOWED_PEERS", "0.0.0.0/0", func(c *Config, s string) (e error) {
 			_, c.AllowedPeers, e = net.ParseCIDR(s)
 			return
+		},
+	},
+	{
+		"VCAP_APPLICATION", "{}", func(c *Config, s string) (e error) {
+			return json.Unmarshal([]byte(s), &c.CFInfo)
+		},
+	},
+	{
+		"LEADER", "", func(c *Config, s string) (e error) {
+			if len(c.CFInfo.URIs) > 0 {
+				c.Leader = c.CFInfo.URIs[0]
+			}
+			if s != "" {
+				c.Leader = s
+			}
+			return nil
+		},
+	},
+	{
+		"LOG_LEVEL", "info", func(c *Config, level string) (e error) {
+			c.LogLevel = parseLogLevel(level)
+			return nil
 		},
 	},
 }
