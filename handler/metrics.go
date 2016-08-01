@@ -17,6 +17,7 @@ func (h *MetricsData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer logger.Debug("done")
 
 	snapshot := h.SnapshotGetter()
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(snapshot)
 }
 

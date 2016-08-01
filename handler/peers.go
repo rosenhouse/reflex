@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -23,6 +22,7 @@ func (h *PeerList) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer logger.Debug("done")
 
 	snapshot := h.Peers.Snapshot(logger)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(snapshot)
 }
 
@@ -32,8 +32,9 @@ type PeerPost struct {
 	AllowedCIDR *net.IPNet
 }
 
-func encodeError(stream io.Writer, msg string) {
-	json.NewEncoder(stream).Encode(struct {
+func encodeError(w http.ResponseWriter, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(struct {
 		Error string `json:"error"`
 	}{msg})
 }
@@ -60,6 +61,7 @@ func (h *PeerPost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.Peers.Upsert(logger, clientIP.String())
 
 	snapshot := h.Peers.Snapshot(logger)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(snapshot)
 }
 
