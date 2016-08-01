@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/rosenhouse/reflex/client"
 	"github.com/rosenhouse/reflex/handler"
+	"github.com/rosenhouse/reflex/metric"
 	"github.com/rosenhouse/reflex/peer"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/grouper"
@@ -50,9 +52,15 @@ func main() {
 	}
 	logger.Info("local-ip", lager.Data{"ip": myIP})
 
+	metricStore := metric.NewStore(config.MetricMaxCapacity)
+
 	client := &client.Client{
 		HTTPClient: http.DefaultClient,
 		Port:       config.Port,
+
+		ReportRoundTripLatency: func(d time.Duration) {
+			metricStore.Report("round_trip", d.Seconds())
+		},
 	}
 
 	peers := peer.NewList(config.TTL, myIP)
@@ -76,15 +84,27 @@ func main() {
 		AllowedCIDR: config.AllowedPeers,
 	}
 
+	metricsDataHandler := &handler.MetricsData{
+		Logger:         logger,
+		SnapshotGetter: func() interface{} { return metricStore.Snapshot() },
+	}
+	metricsDisplayHandler := &handler.MetricsDisplay{
+		Logger: logger,
+	}
+
 	routes := rata.Routes{
 		{Name: "peers_list", Method: "GET", Path: "/"},
 		{Name: "peers_list", Method: "GET", Path: "/peers"},
 		{Name: "peers_upsert", Method: "POST", Path: "/peers"},
+		{Name: "metrics_data", Method: "GET", Path: "/metrics/data"},
+		{Name: "metrics_display", Method: "GET", Path: "/metrics"},
 	}
 
 	handlers := rata.Handlers{
-		"peers_list":   peerListHandler,
-		"peers_upsert": peerPostHandler,
+		"peers_list":      peerListHandler,
+		"peers_upsert":    peerPostHandler,
+		"metrics_data":    metricsDataHandler,
+		"metrics_display": metricsDisplayHandler,
 	}
 	router, err := rata.NewRouter(routes, handlers)
 	if err != nil {

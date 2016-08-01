@@ -18,8 +18,9 @@ type Config struct {
 	CFInfo       struct {
 		URIs []string
 	}
-	Leader   string
-	LogLevel lager.LogLevel
+	Leader            string
+	LogLevel          lager.LogLevel
+	MetricMaxCapacity int
 }
 
 type element struct {
@@ -60,13 +61,19 @@ var elements = []element{
 			if s != "" {
 				c.Leader = s
 			}
-			return nil
+			return
 		},
 	},
 	{
 		"LOG_LEVEL", "info", func(c *Config, level string) (e error) {
 			c.LogLevel = parseLogLevel(level)
-			return nil
+			return
+		},
+	},
+	{
+		"METRIC_MAX_CAPACITY", "10000", func(c *Config, s string) (e error) {
+			c.MetricMaxCapacity, e = strconv.Atoi(s)
+			return
 		},
 	},
 }

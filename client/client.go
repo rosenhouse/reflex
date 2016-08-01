@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/rosenhouse/reflex/peer"
 )
@@ -11,9 +12,13 @@ import (
 type Client struct {
 	HTTPClient *http.Client
 	Port       int
+
+	ReportRoundTripLatency func(time.Duration)
 }
 
 func (c *Client) doAndGetResults(method, url string) ([]peer.Glimpse, error) {
+	startTime := time.Now()
+
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		return nil, err
@@ -26,6 +31,8 @@ func (c *Client) doAndGetResults(method, url string) ([]peer.Glimpse, error) {
 
 	results := []peer.Glimpse{}
 	err = json.NewDecoder(resp.Body).Decode(&results)
+
+	c.ReportRoundTripLatency(time.Since(startTime))
 	return results, err
 }
 
