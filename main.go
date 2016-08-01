@@ -93,12 +93,21 @@ func main() {
 		Logger: logger,
 	}
 
+	bandwidthHandler := &handler.Bandwidth{
+		Logger: logger,
+
+		ReportAvgBandwidth: func(b float64) {
+			metricStore.Report("bandwidth", b)
+		},
+	}
+
 	routes := rata.Routes{
 		{Name: "peers_list", Method: "GET", Path: "/peers"},
 		{Name: "peers_upsert", Method: "POST", Path: "/peers"},
 		{Name: "metrics_data", Method: "GET", Path: "/metrics/data"},
 		{Name: "metrics_display", Method: "GET", Path: "/metrics"},
 		{Name: "metrics_display", Method: "GET", Path: "/"},
+		{Name: "bandwidth", Method: "POST", Path: "/bandwidth"},
 	}
 
 	handlers := rata.Handlers{
@@ -106,6 +115,7 @@ func main() {
 		"peers_upsert":    peerPostHandler,
 		"metrics_data":    gziphandler.GzipHandler(metricsDataHandler),
 		"metrics_display": gziphandler.GzipHandler(metricsDisplayHandler),
+		"bandwidth":       bandwidthHandler,
 	}
 	router, err := rata.NewRouter(routes, handlers)
 	if err != nil {
