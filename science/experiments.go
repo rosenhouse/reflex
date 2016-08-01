@@ -65,6 +65,7 @@ func (b *BandwidthExperiment) run() {
 	result, err := b.Client.TestBandwidth(logger, target, b.PayloadSize)
 	if err != nil {
 		logger.Error("test-bandwidth", err)
+		return
 	}
 
 	b.ReportAvgBandwidth(result.AvgBandwidth)
