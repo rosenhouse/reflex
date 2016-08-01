@@ -52,26 +52,26 @@ const body = `
         'use strict';
         var chartApps = dc.barChart("#roundTrips");
         var jsonURL = "/metrics/data";
-        console.log(jsonURL);
         d3.json(jsonURL,
          function(error, metrics) {
-          var latencies = metrics.round_trip
-          var num_bins = 25;
-          var range_max = d3.max(latencies);
-          var bin_width = range_max / num_bins;
+          var latencies = metrics.round_trip;
 
           var cf = crossfilter(latencies),
             latDim = cf.dimension(function(d) {return d;}),
-            latGrouped = latDim.group(function(lat) { return Math.floor(lat/bin_width)*bin_width; }).reduceCount();
+            latGrouped = latDim.group(function(lat) {
+              return Math.floor(Math.log10(lat + 0.00001));
+            }).reduceCount();
+
+          var y_max = latGrouped.top(1)[0].value;
 
           chartApps
             .width(1000)
             .height(500)
-            .x(d3.scale.linear().domain([0,range_max]))
+            .x(d3.scale.linear().domain([-4,2]))
+            .y(d3.scale.sqrt().domain([0,y_max+1]))
             .brushOn(false)
-            .xUnits(function() { return num_bins; })
             .yAxisLabel("Frequency")
-            .xAxisLabel("Latency (s)")
+            .xAxisLabel("Latency (log seconds)")
             .dimension(latDim)
             .group(latGrouped);
             chartApps.render();
