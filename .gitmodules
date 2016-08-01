@@ -13,3 +13,6 @@
 [submodule "vendor/code.cloudfoundry.org/localip"]
 	path = vendor/code.cloudfoundry.org/localip
 	url = https://github.com/cloudfoundry/localip
+[submodule "vendor/github.com/NYTimes/gziphandler"]
+	path = vendor/github.com/NYTimes/gziphandler
+	url = https://github.com/NYTimes/gziphandler

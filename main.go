@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/NYTimes/gziphandler"
 	"github.com/rosenhouse/reflex/client"
 	"github.com/rosenhouse/reflex/handler"
 	"github.com/rosenhouse/reflex/metric"
@@ -103,8 +104,8 @@ func main() {
 	handlers := rata.Handlers{
 		"peers_list":      peerListHandler,
 		"peers_upsert":    peerPostHandler,
-		"metrics_data":    metricsDataHandler,
-		"metrics_display": metricsDisplayHandler,
+		"metrics_data":    gziphandler.GzipHandler(metricsDataHandler),
+		"metrics_display": gziphandler.GzipHandler(metricsDisplayHandler),
 	}
 	router, err := rata.NewRouter(routes, handlers)
 	if err != nil {
