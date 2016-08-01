@@ -45,13 +45,14 @@ func (h *Heartbeat) check() {
 	defer logger.Debug("done")
 
 	if h.Leader != "" {
-		leaderPeers, err := h.Client.ReadLeader(h.Leader)
+		leaderLogger := logger.Session("read-leader").WithData(lager.Data{"leader": h.Leader})
+		leaderPeers, err := h.Client.ReadLeader(leaderLogger, h.Leader)
 		if err != nil {
-			logger.Error("get-from-leader", err, lager.Data{"leader": h.Leader})
+			leaderLogger.Error("get-from-leader", err)
 			return
 		}
-		logger.Info("get-from-leader", lager.Data{"candidate-peers": leaderPeers})
-		h.Peers.UpsertUntrusted(logger, leaderPeers)
+		leaderLogger.Info("get-from-leader", lager.Data{"candidate-peers": leaderPeers})
+		h.Peers.UpsertUntrusted(leaderLogger, leaderPeers)
 	}
 
 	ttlThreshhold := int(h.CheckInterval.Seconds())
@@ -63,14 +64,15 @@ func (h *Heartbeat) check() {
 			wg.Add(1)
 			go func(peerHost string) {
 				defer wg.Done()
-				morePeers, err := h.Client.PostAndReadSnapshot(peerHost)
+				peerLogger := logger.Session("post-peer").WithData(lager.Data{"peer": peerHost})
+				morePeers, err := h.Client.PostAndReadSnapshot(peerLogger, peerHost)
 				if err != nil {
-					logger.Error("post-to-peer", err, lager.Data{"peer": peerHost})
+					peerLogger.Error("post-to-peer", err)
 					return
 				}
-				logger.Debug("post-to-peer", lager.Data{"peer": peerHost})
-				h.Peers.Upsert(logger, peerHost)
-				h.Peers.UpsertUntrusted(logger, morePeers)
+				peerLogger.Debug("post-to-peer")
+				h.Peers.Upsert(peerLogger, peerHost)
+				h.Peers.UpsertUntrusted(peerLogger, morePeers)
 			}(peer.Host)
 		}
 	}

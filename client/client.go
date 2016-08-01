@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"code.cloudfoundry.org/lager"
+
 	"github.com/rosenhouse/reflex/peer"
 )
 
@@ -16,7 +18,7 @@ type Client struct {
 	ReportRoundTripLatency func(time.Duration)
 }
 
-func (c *Client) doAndGetResults(method, url string) ([]peer.Glimpse, error) {
+func (c *Client) doAndGetResults(logger lager.Logger, method, url string) ([]peer.Glimpse, error) {
 	startTime := time.Now()
 
 	req, err := http.NewRequest(method, url, nil)
@@ -32,16 +34,20 @@ func (c *Client) doAndGetResults(method, url string) ([]peer.Glimpse, error) {
 	results := []peer.Glimpse{}
 	err = json.NewDecoder(resp.Body).Decode(&results)
 
-	c.ReportRoundTripLatency(time.Since(startTime))
+	roundTripLatency := time.Since(startTime)
+	c.ReportRoundTripLatency(roundTripLatency)
+	if roundTripLatency > time.Second {
+		logger.Info("slow-round-trip", lager.Data{"seconds": roundTripLatency.Seconds()})
+	}
 	return results, err
 }
 
-func (c *Client) ReadLeader(leader string) ([]peer.Glimpse, error) {
+func (c *Client) ReadLeader(logger lager.Logger, leader string) ([]peer.Glimpse, error) {
 	url := fmt.Sprintf("http://%s/peers", leader)
-	return c.doAndGetResults("GET", url)
+	return c.doAndGetResults(logger, "GET", url)
 }
 
-func (c *Client) PostAndReadSnapshot(host string) ([]peer.Glimpse, error) {
+func (c *Client) PostAndReadSnapshot(logger lager.Logger, host string) ([]peer.Glimpse, error) {
 	url := fmt.Sprintf("http://%s:%d/peers", host, c.Port)
-	return c.doAndGetResults("POST", url)
+	return c.doAndGetResults(logger, "POST", url)
 }

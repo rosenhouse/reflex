@@ -58,11 +58,12 @@ func (p *peerList) Upsert(logger lager.Logger, host string) {
 
 func (p *peerList) upsertWithTTL(logger lager.Logger, host string, ttl time.Duration) {
 	expireTime := time.Now().Add(ttl)
+	host = strings.TrimSpace(host)
+	ttlSec := int(ttl.Seconds())
+
 	p.Lock.Lock()
 	defer p.Lock.Unlock()
 
-	host = strings.TrimSpace(host)
-	ttlSec := int(ttl.Seconds())
 	if p.Peers[host].Before(expireTime) {
 		p.Peers[host] = expireTime
 		logger.Info("upserted", lager.Data{"host": host, "ttl": ttlSec})
