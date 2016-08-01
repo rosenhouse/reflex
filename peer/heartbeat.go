@@ -1,4 +1,4 @@
-package main
+package peer
 
 import (
 	"fmt"
@@ -8,17 +8,19 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/lager"
-
-	"github.com/rosenhouse/reflex/client"
-	"github.com/rosenhouse/reflex/peer"
 )
+
+type peerClient interface {
+	ReadLeader(logger lager.Logger, leader string) ([]Glimpse, error)
+	PostAndReadSnapshot(logger lager.Logger, host string) ([]Glimpse, error)
+}
 
 type Heartbeat struct {
 	Leader        string
-	Peers         peer.List
+	Peers         List
 	Logger        lager.Logger
 	CheckInterval time.Duration
-	Client        *client.Client
+	Client        peerClient
 }
 
 func (h *Heartbeat) RunHeartbeat(signals <-chan os.Signal, ready chan<- struct{}) error {

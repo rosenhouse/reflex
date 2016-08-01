@@ -65,7 +65,7 @@ func main() {
 
 	peers := peer.NewList(config.TTL, myIP)
 
-	heartbeat := Heartbeat{
+	heartbeat := peer.Heartbeat{
 		Leader:        config.Leader,
 		CheckInterval: config.TTL,
 		Peers:         peers,
@@ -93,11 +93,11 @@ func main() {
 	}
 
 	routes := rata.Routes{
-		{Name: "peers_list", Method: "GET", Path: "/"},
 		{Name: "peers_list", Method: "GET", Path: "/peers"},
 		{Name: "peers_upsert", Method: "POST", Path: "/peers"},
 		{Name: "metrics_data", Method: "GET", Path: "/metrics/data"},
 		{Name: "metrics_display", Method: "GET", Path: "/metrics"},
+		{Name: "metrics_display", Method: "GET", Path: "/"},
 	}
 
 	handlers := rata.Handlers{
