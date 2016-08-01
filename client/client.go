@@ -70,6 +70,7 @@ func (c *Client) TestBandwidth(logger lager.Logger, host string, payloadSize int
 	localHasher := sha256.New()
 	payload := io.TeeReader(io.LimitReader(rand.Reader, payloadSize), localHasher)
 	results := &science.BandwidthExperimentResult{}
+
 	logger.Debug("starting", lager.Data{"payload": payloadSize})
 	err := c.doAndUnmarshal("POST", url, payload, results)
 	if err != nil {

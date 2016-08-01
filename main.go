@@ -12,6 +12,7 @@ import (
 	"github.com/rosenhouse/reflex/handler"
 	"github.com/rosenhouse/reflex/metric"
 	"github.com/rosenhouse/reflex/peer"
+	"github.com/rosenhouse/reflex/science"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/grouper"
 	"github.com/tedsuo/ifrit/http_server"
@@ -93,12 +94,22 @@ func main() {
 		Logger: logger,
 	}
 
-	bandwidthHandler := &handler.Bandwidth{
-		Logger: logger,
+	reportAvgBandwidth := func(b float64) {
+		metricStore.Report("bandwidth", b)
+	}
 
-		ReportAvgBandwidth: func(b float64) {
-			metricStore.Report("bandwidth", b)
-		},
+	bandwidthHandler := &handler.Bandwidth{
+		Logger:             logger,
+		ReportAvgBandwidth: reportAvgBandwidth,
+	}
+
+	bandwidthExperiment := &science.BandwidthExperiment{
+		Peers:              peers,
+		Logger:             logger,
+		CheckInterval:      config.TTL,
+		Client:             client,
+		PayloadSize:        1 << 20, // ~ 1MB
+		ReportAvgBandwidth: reportAvgBandwidth,
 	}
 
 	routes := rata.Routes{
@@ -127,6 +138,7 @@ func main() {
 		{"http_server", httpServer},
 		{"list_culler", ifrit.RunFunc(peers.RunCullerLoop)},
 		{"heart_beater", ifrit.RunFunc(heartbeat.RunHeartbeat)},
+		{"bandwidth_experiment", bandwidthExperiment},
 	}
 
 	monitor := ifrit.Invoke(sigmon.New(grouper.NewOrdered(os.Interrupt, members)))
